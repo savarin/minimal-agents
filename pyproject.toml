@@ -18,7 +18,9 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: Implementation :: CPython",
 ]
-dependencies = []
+dependencies = [
+    "openai",
+]
 
 [project.optional-dependencies]
 dev = [
