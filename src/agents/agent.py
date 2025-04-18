@@ -1,10 +1,13 @@
-from dataclasses import dataclass
+from typing import Any, Generic
+from dataclasses import dataclass, field
 
+from .model_settings import ModelSettings
 from .models.interface import Model
+from .run_context import TContext
 
 
 @dataclass
-class Agent:
+class Agent(Generic[TContext]):
     """An agent is an AI model configured with instructions, tools, guardrails, handoffs and more.
 
     We strongly recommend passing `instructions`, which is the "system prompt" for the agent. In
@@ -24,3 +27,10 @@ class Agent:
     By default, if not set, the agent will use the default model configured in
     `openai_provider.DEFAULT_MODEL` (currently "gpt-4o").
     """
+
+    model_settings: ModelSettings = field(default_factory=ModelSettings)
+    """Configures model-specific tuning parameters (e.g. temperature, top_p).
+    """
+
+    output_type: type[Any] | None = None
+    """The type of the output object. If not provided, the output will be `str`."""
