@@ -9,7 +9,7 @@ from .models.interface import Model, ModelSettings, Usage
 # from .run_context import RunContextWrapper, TContext
 
 
-TContext = TypeVar("TContext", default=Any)
+TContext = TypeVar("TContext", bound=Any)
 
 
 @dataclass

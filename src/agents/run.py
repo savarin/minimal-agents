@@ -7,7 +7,7 @@ from openai.types.responses import (
     ResponseOutputText,
 )
 
-from .agent import Agent
+from .agent import Agent, TContext
 from .models.interface import (
     Model,
     ModelResponse,
@@ -88,7 +88,7 @@ class Runner:
     @classmethod
     async def run(
         cls,
-        agent: Agent,
+        agent: Agent[TContext],
         input: str | list[TResponseInputItem],
     ) -> RunResult:
         """Run a workflow starting at the given agent. The agent will run in a loop until a final
