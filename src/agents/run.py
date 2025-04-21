@@ -1,11 +1,14 @@
-from typing import Any
+from typing import Any, Literal, Generic, TypeAlias, TypeVar, cast
 from dataclasses import dataclass
+import abc
+import copy
 
 from openai.types.responses import (
     ResponseOutputMessage,
     ResponseOutputRefusal,
     ResponseOutputText,
 )
+from pydantic import BaseModel
 
 from .agent import Agent, TContext
 from .models.interface import (
@@ -55,6 +58,62 @@ class ItemHelpers:
         else:
             raise ModelBehaviorError(f"Unexpected content type: {type(last_content)}")
 
+    @classmethod
+    def input_to_new_input_list(
+        cls, input: str | list[TResponseInputItem]
+    ) -> list[TResponseInputItem]:
+        """Converts a string or list of input items into a list of input items."""
+        if isinstance(input, str):
+            return [
+                {
+                    "content": input,
+                    "role": "user",
+                }
+            ]
+
+        return copy.deepcopy(input)
+
+
+T = TypeVar("T", bound=TResponseOutputItem | TResponseInputItem)
+
+
+@dataclass
+class RunItemBase(Generic[T], abc.ABC):
+    agent: Agent[Any]
+    """The agent whose run caused this item to be generated."""
+
+    raw_item: T
+    """The raw Responses item from the run. This will always be a either an output item (i.e.
+    `openai.types.responses.ResponseOutputItem` or an input item
+    (i.e. `openai.types.responses.ResponseInputItemParam`).
+    """
+
+    def to_input_item(self) -> TResponseInputItem:
+        """Converts this item into an input item suitable for passing to the model."""
+        if isinstance(self.raw_item, dict):
+            # We know that input items are dicts, so we can ignore the type error
+            return self.raw_item  # type: ignore
+
+        elif isinstance(self.raw_item, BaseModel):
+            # All output items are Pydantic models that can be converted to input items.
+            return self.raw_item.model_dump(exclude_unset=True)  # type: ignore
+
+        else:
+            raise AgentsException(f"Unexpected raw item type: {type(self.raw_item)}")
+
+
+@dataclass
+class MessageOutputItem(RunItemBase[ResponseOutputMessage]):
+    """Represents a message from the LLM."""
+
+    raw_item: ResponseOutputMessage
+    """The raw response output message."""
+
+    type: Literal["message_output_item"] = "message_output_item"
+
+
+RunItem: TypeAlias = MessageOutputItem
+
 
 # from .result import RunResult
 
@@ -66,7 +125,7 @@ class RunResult:
     version of the input, if there are handoff input filters that mutate the input.
     """
 
-    new_items: list[TResponseOutputItem]
+    new_items: list[RunItem]
     """The new items generated during the agent run. These include things like new messages, tool
     calls and their outputs, etc.
     """
@@ -79,6 +138,15 @@ class RunResult:
 
     last_agent: Agent[Any]
     """The last agent that was run."""
+
+    def to_input_list(self) -> list[TResponseInputItem]:
+        """Creates a new input list, merging the original input with all the new items generated."""
+        original_items: list[TResponseInputItem] = ItemHelpers.input_to_new_input_list(
+            self.input
+        )
+        new_items = [item.to_input_item() for item in self.new_items]
+
+        return original_items + new_items
 
 
 # src.agents.run
@@ -137,7 +205,7 @@ class Runner:
 
         return RunResult(
             input=input,
-            new_items=response.output,
+            new_items=cast(list[RunItem], response.output),
             raw_responses=[response],
             final_output=final_output,
             last_agent=agent,

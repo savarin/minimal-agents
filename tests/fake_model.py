@@ -20,6 +20,9 @@ class FakeModel(Model):
             [initial_output] if initial_output else []
         )
 
+    def set_next_output(self, output: list[TResponseOutputItem]) -> None:
+        self.turn_outputs.append(output)
+
     def get_next_output(self) -> list[TResponseOutputItem]:
         if not self.turn_outputs:
             return []

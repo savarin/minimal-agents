@@ -7,6 +7,7 @@ from .models.interface import (
     TResponseOutputItem,
     Usage,
 )
+from .run import Runner
 
 
 __all__ = [
@@ -14,6 +15,7 @@ __all__ = [
     "Model",
     "ModelResponse",
     "ModelSettings",
+    "Runner",
     "TResponseInputItem",
     "TResponseOutputItem",
     "Usage",
