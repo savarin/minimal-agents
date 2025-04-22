@@ -109,3 +109,21 @@ class Model(abc.ABC):
             The full model response.
         """
         pass
+
+
+class ModelProvider(abc.ABC):
+    """The base interface for a model provider.
+
+    Model provider is responsible for looking up Models by name.
+    """
+
+    @abc.abstractmethod
+    def get_model(self, model_name: str | None) -> Model:
+        """Get a model by name.
+
+        Args:
+            model_name: The name of the model to get.
+
+        Returns:
+            The model.
+        """

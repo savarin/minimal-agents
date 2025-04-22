@@ -1,5 +1,5 @@
 from typing import Any, Literal, Generic, TypeAlias, TypeVar, cast
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import abc
 import copy
 
@@ -13,10 +13,12 @@ from pydantic import BaseModel
 from .agent import Agent, TContext
 from .models.interface import (
     Model,
+    ModelProvider,
     ModelResponse,
     TResponseInputItem,
     TResponseOutputItem,
 )
+from .models.openai_provider import OpenAIProvider
 
 
 # from .exceptions import ModelBehaviorError
@@ -92,11 +94,11 @@ class RunItemBase(Generic[T], abc.ABC):
         """Converts this item into an input item suitable for passing to the model."""
         if isinstance(self.raw_item, dict):
             # We know that input items are dicts, so we can ignore the type error
-            return self.raw_item  # type: ignore
+            return self.raw_item  # type: ignore[return-value]
 
         elif isinstance(self.raw_item, BaseModel):
             # All output items are Pydantic models that can be converted to input items.
-            return self.raw_item.model_dump(exclude_unset=True)  # type: ignore
+            return self.raw_item.model_dump(exclude_unset=True)  # type: ignore[union-attr, return-value]
 
         else:
             raise AgentsException(f"Unexpected raw item type: {type(self.raw_item)}")
@@ -177,6 +179,19 @@ class RunResult:
 # src.agents.run
 
 
+@dataclass
+class RunConfig:
+    """Configures settings for the entire agent run."""
+
+    model: str | Model | None = None
+    """The model to use for the entire agent run. If set, will override the model set on every
+    agent. The model_provider passed in below must be able to resolve this model name.
+    """
+
+    model_provider: ModelProvider = field(default_factory=OpenAIProvider)
+    """The model provider to use when looking up string model names. Defaults to OpenAI."""
+
+
 class Runner:
     @classmethod
     async def run(
@@ -214,7 +229,8 @@ class Runner:
             A run result containing all the inputs, guardrail results and the output of the last
             agent. Agents may perform handoffs, so we don't know the specific type of the output.
         """
-        assert isinstance(agent.model, Model)
+        if not isinstance(agent.model, Model):
+            agent.model = cls._get_model(agent=agent, run_config=RunConfig())
 
         response = await agent.model.get_response(
             system_instructions=cast(str | None, agent.instructions),
@@ -236,3 +252,10 @@ class Runner:
             final_output=final_output,
             last_agent=agent,
         )
+
+    @classmethod
+    def _get_model(cls, agent: Agent[Any], run_config: RunConfig) -> Model:
+        if isinstance(agent.model, Model):
+            return agent.model
+
+        return run_config.model_provider.get_model(agent.model)
