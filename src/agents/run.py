@@ -115,6 +115,31 @@ class MessageOutputItem(RunItemBase[ResponseOutputMessage]):
 RunItem: TypeAlias = MessageOutputItem
 
 
+# from ._run_impl import RunImpl
+
+
+@dataclass
+class ProcessedResponse:
+    new_items: list[RunItem]
+
+
+class RunImpl:
+    @classmethod
+    def process_model_response(
+        cls,
+        *,
+        agent: Agent[Any],
+        response: ModelResponse,
+    ) -> ProcessedResponse:
+        items: list[RunItem] = []
+
+        for output in response.output:
+            if isinstance(output, ResponseOutputMessage):
+                items.append(MessageOutputItem(raw_item=output, agent=agent))
+
+        return ProcessedResponse(new_items=items)
+
+
 # from .result import RunResult
 
 
@@ -190,22 +215,23 @@ class Runner:
             agent. Agents may perform handoffs, so we don't know the specific type of the output.
         """
         assert isinstance(agent.model, Model)
-        assert isinstance(agent.instructions, str)
 
         response = await agent.model.get_response(
-            system_instructions=agent.instructions,
+            system_instructions=cast(str | None, agent.instructions),
             input=input,
             model_settings=agent.model_settings,
         )
 
-        final_output = ""
+        processed_response = RunImpl.process_model_response(
+            agent=agent,
+            response=response,
+        )
 
-        if response.output:
-            final_output = ItemHelpers.extract_last_content(response.output[0])
+        final_output = ItemHelpers.extract_last_content(response.output[0])
 
         return RunResult(
             input=input,
-            new_items=cast(list[RunItem], response.output),
+            new_items=processed_response.new_items,
             raw_responses=[response],
             final_output=final_output,
             last_agent=agent,
